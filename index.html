@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arweave Dosya Yükleme Uygulaması</title>
+  <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/arweave@1.15.1/bundles/web.bundle.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    button { margin: 10px 0; padding: 10px; cursor: pointer; }
+    input[type="file"] { margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const ArweaveUploader = () => {
+      const [selectedFile, setSelectedFile] = React.useState(null);
+      const [uploadStatus, setUploadStatus] = React.useState('');
+      const [fileAddress, setFileAddress] = React.useState('');
+      const [key, setKey] = React.useState(null);
+
+      const arweave = Arweave.init({
+        host: 'arweave.net',
+        port: 443,
+        protocol: 'https'
+      });
+
+      React.useEffect(() => {
+        // Sayfa yüklendiğinde bir test cüzdanı oluştur
+        generateTestWallet();
+      }, []);
+
+      const generateTestWallet = async () => {
+        try {
+          const generatedKey = await arweave.wallets.generate();
+          setKey(generatedKey);
+          console.log("Test cüzdanı oluşturuldu:", generatedKey);
+        } catch (error) {
+          console.error("Cüzdan oluşturma hatası:", error);
+          setUploadStatus("Cüzdan oluşturulamadı. Lütfen tekrar deneyin.");
+        }
+      };
+
+      const handleFileSelect = (event) => {
+        setSelectedFile(event.target.files[0]);
+        setUploadStatus('');
+        setFileAddress('');
+      };
+
+      const uploadFile = async () => {
+        if (!selectedFile) {
+          setUploadStatus('Lütfen bir dosya seçin.');
+          return;
+        }
+
+        if (!key) {
+          setUploadStatus('Cüzdan anahtarı bulunamadı. Lütfen sayfayı yenileyin.');
+          return;
+        }
+
+        try {
+          setUploadStatus('Dosya yükleniyor...');
+
+          const reader = new FileReader();
+          reader.onload = async (e) => {
+            const fileData = new Uint8Array(e.target.result);
+            const transaction = await arweave.createTransaction({ data: fileData }, key);
+            
+            transaction.addTag('Content-Type', selectedFile.type);
+
+            await arweave.transactions.sign(transaction, key);
+            
+            let uploader = await arweave.transactions.getUploader(transaction);
+
+            while (!uploader.isComplete) {
+              await uploader.uploadChunk();
+              setUploadStatus(`${uploader.pctComplete}% tamamlandı, ${uploader.uploadedChunks}/${uploader.totalChunks}`);
+            }
+
+            setUploadStatus('Dosya başarıyla yüklendi!');
+            setFileAddress(`https://arweave.net/${transaction.id}`);
+          };
+
+          reader.readAsArrayBuffer(selectedFile);
+        } catch (error) {
+          console.error('Yükleme hatası:', error);
+          setUploadStatus('Dosya yüklenirken bir hata oluştu.');
+        }
+      };
+
+      return (
+        <div>
+          <h2>Arweave Dosya Yükleyici</h2>
+          <input type="file" onChange={handleFileSelect} />
+          <button onClick={uploadFile}>Dosyayı Yükle</button>
+          <p>{uploadStatus}</p>
+          {fileAddress && (
+            <div>
+              <p>Dosya Adresi:</p>
+              <a href={fileAddress} target="_blank" rel="noopener noreferrer">
+                {fileAddress}
+              </a>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const App = () => {
+      return (
+        <div>
+          <h1>Arweave Dosya Yükleme Uygulaması</h1>
+          <ArweaveUploader />
+        </div>
+      );
+    };
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
