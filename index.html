@@ -21,12 +21,35 @@
       const [selectedFile, setSelectedFile] = React.useState(null);
       const [uploadStatus, setUploadStatus] = React.useState('');
       const [fileAddress, setFileAddress] = React.useState('');
+      const [isConnected, setIsConnected] = React.useState(false);
 
       const arweave = Arweave.init({
         host: 'arweave.net',
         port: 443,
         protocol: 'https'
       });
+
+      const connectMetamask = async () => {
+        if (typeof window.ethereum !== 'undefined') {
+          try {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+            if (chainId !== '0x5') {
+              await window.ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: '0x5' }],
+              });
+            }
+            setIsConnected(true);
+            setUploadStatus('Metamask bağlandı ve Goerli ağına geçildi.');
+          } catch (error) {
+            console.error('Metamask bağlantı hatası:', error);
+            setUploadStatus('Metamask bağlantısı başarısız oldu.');
+          }
+        } else {
+          setUploadStatus('Lütfen Metamask yükleyin.');
+        }
+      };
 
       const handleFileSelect = (event) => {
         setSelectedFile(event.target.files[0]);
@@ -35,6 +58,11 @@
       };
 
       const uploadFile = async () => {
+        if (!isConnected) {
+          setUploadStatus('Lütfen önce Metamask ile bağlanın.');
+          return;
+        }
+
         if (!selectedFile) {
           setUploadStatus('Lütfen bir dosya seçin.');
           return;
@@ -43,15 +71,19 @@
         try {
           setUploadStatus('Dosya yükleniyor...');
 
-          // wallet key part 🤯
-          const jwk = await arweave.wallets.generate();
-
           const data = await selectedFile.arrayBuffer();
-          const transaction = await arweave.createTransaction({ data: data }, jwk);
+          const transaction = await arweave.createTransaction({ data: data });
 
           transaction.addTag('Content-Type', selectedFile.type);
 
-          await arweave.transactions.sign(transaction, jwk);
+          const provider = new ethers.providers.Web3Provider(window.ethereum);
+          const signer = provider.getSigner();
+          const message = arweave.utils.bufferTob64(transaction.get('data'));
+          const signature = await signer.signMessage(message);
+
+          transaction.addTag('Ethereum-Signature', signature);
+
+          await arweave.transactions.sign(transaction);
 
           const uploader = await arweave.transactions.getUploader(transaction);
 
@@ -70,6 +102,7 @@
 
       return (
         <div>
+          <button onClick={connectMetamask}>Metamask ile Bağlan</button>
           <input type="file" onChange={handleFileSelect} />
           <button onClick={uploadFile}>Dosyayı Yükle</button>
           <p>{uploadStatus}</p>
@@ -88,7 +121,7 @@
     const App = () => {
       return (
         <div>
-          <h1>Arweave Dosya Yükleme Uygulaması</h1>
+          <h1>Arweave Dosya Yükleme Uygulaması (Goerli Ağı)</h1>
           <ArweaveUploader />
         </div>
       );
