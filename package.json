@@ -1,8 +1,0 @@
-{
-  "dependencies": {
-    "@rainbow-me/rainbowkit": "^2.1.5",
-    "arweave": "^1.15.1",
-    "ethers": "^6.13.2",
-    "wagmi": "^2.12.7"
-  }
-}
