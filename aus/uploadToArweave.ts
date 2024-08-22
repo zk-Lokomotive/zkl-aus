@@ -1,38 +1,36 @@
 
 import * as fs from 'fs';
 import Arweave from 'arweave';
-
+// import { readFileSync } from 'node:fs';
 
 (async () => {
+  const arweave = Arweave.init({
+    host: 'arweave.net',
+    port: 443,
+    protocol: 'https',
+    timeout: 20000,
+    logging: false,
+  });
 
-    const arweave = Arweave.init({
-        host: 'arweave.net',
-        port: 443,
-        protocol: 'https',
-        timeout: 20000,
-        logging: false,
-    });
+  // Cüzdan JSON dosyasını oku
+  const rawWallet = fs.readFileSync('./arweave-wallet.json', 'utf-8');
+  const wallet = JSON.parse(rawWallet);
 
-    // Upload image to Arweave
-    const data = fs.readFileSync('./ape-punk.png');
-    
-    const transaction = await arweave.createTransaction({
-        data: data
-    });
+  // Upload image to Arweave
+  const data = fs.readFileSync('./ape-punk.png');
+  const transaction = await arweave.createTransaction({
+    data: data
+  });
+  transaction.addTag('Content-Type', 'image/png');
 
-    
-    transaction.addTag('Content-Type', 'image/png');
+  // İşlemi cüzdanla imzala
+  await arweave.transactions.sign(transaction, wallet);
 
-    await arweave.transactions.sign(transaction, "Arweave WALLET JSON without ext:true");
-    
+  const response = await arweave.transactions.post(transaction);
+  console.log(response);
 
-    const response = await arweave.transactions.post(transaction);
-    
-    console.log(response);
-
-    const imageUrl = transaction.id ? `https://arweave.net/${transaction.id}` : undefined;
-
-    console.log(imageUrl);
+  const imageUrl = transaction.id ? `https://arweave.net/${transaction.id}` : undefined;
+  console.log(imageUrl);
     // Upload metadata to Arweave
 
 //     const metadata = {
