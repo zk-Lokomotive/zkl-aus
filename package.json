@@ -7,6 +7,7 @@
   "description": "Arweave uploader scripts",
   "version": "1.0.0",
   "main": "App.js",
+  "type": "module",
   "devDependencies": {},
   "scripts": {
     "start": "node App.js",
